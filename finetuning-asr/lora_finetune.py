@@ -408,12 +408,21 @@ def setup_model_for_training(
         language_model_pretrained_name="Qwen/Qwen2.5-7B"
     )
     
+    # 自動偵測最佳注意力機制：優先 Flash Attention 2，失敗則退回 SDPA
+    attn_impl = "sdpa"  # 預設備援
+    try:
+        import flash_attn  # noqa: F401
+        attn_impl = "flash_attention_2"
+        logger.info("使用 Flash Attention 2（效能最佳）")
+    except ImportError:
+        logger.info("Flash Attention 未安裝，使用 SDPA（PyTorch 內建）")
+
     # Load model
     model = VibeVoiceASRForConditionalGeneration.from_pretrained(
         model_path,
         dtype=dtype,
         device_map=device if device == "auto" else None,
-        attn_implementation="sdpa",  # 改用 sdpa 避免 flash-attn 編譯失敗
+        attn_implementation=attn_impl,
         trust_remote_code=True,
     )
     

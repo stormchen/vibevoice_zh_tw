@@ -37,8 +37,8 @@ LORA_DROPOUT=0.05
 
 # 訓練超參數
 NUM_EPOCHS=3
-BATCH_SIZE=16              # GH200 記憶體超大 (144GB)，直接拉滿
-GRAD_ACCUM=1               # Batch 夠大，不需要多次累積梯度，一步到位更快
+BATCH_SIZE=48              # GH200 極致模式：144GB 記憶體，大膽拉到 48
+GRAD_ACCUM=1               # 不需要多次累積梯度，一步到位
 LR="2e-4"                  # LoRA 微調典型學習率
 WARMUP_RATIO=0.05
 WEIGHT_DECAY=0.01
@@ -222,7 +222,6 @@ python3 finetuning-asr/lora_finetune.py \
     --logging_steps "${LOGGING_STEPS}" \
     --save_steps "${SAVE_STEPS}" \
     --save_total_limit "${SAVE_TOTAL_LIMIT}" \
-    --gradient_checkpointing \
     --bf16 \
     --report_to none
 
