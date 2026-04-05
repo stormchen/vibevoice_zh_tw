@@ -16,6 +16,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
+import warnings
+
+# 過濾掉預期的 ffmpeg 備援警告
+warnings.filterwarnings("ignore", message="ffmpeg loading failed")
 
 from transformers import (
     TrainingArguments,
