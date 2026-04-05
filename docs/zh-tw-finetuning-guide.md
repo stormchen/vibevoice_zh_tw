@@ -93,34 +93,46 @@ GPU 記憶體: 94.4 GB  （或接近此值）
 
 ## 第二階段：資料準備（20-60 分鐘）
 
+### 設定 Mozilla Data Collective API Key
+
+Common Voice 資料集現在改由 Mozilla Data Collective (MDC) 託管。
+你需要取得 API Key 才能下載資料：
+
+1. 到 [Mozilla Data Collective](https://datacollective.mozillafoundation.org/profile) 註冊並登入。
+2. 搜尋 Common Voice 25.0 zh-TW 資料集並同意授權條款。
+3. 在你的個人檔案頁面產生 API Key。
+
+```bash
+# 設定環境變數
+export MDC_API_KEY="你的_API_KEY"
+```
+
 ### 策略 A：小量試跑（建議先做，確認流程正確）
 
 ```bash
-# 下載 5000 筆訓練資料（約 15-20 分鐘）
+# 下載並轉換 5000 筆訓練資料
 python3 scripts/prepare_common_voice.py \
+    --api_key $MDC_API_KEY \
     --output_dir data/zh-tw-train-small \
     --max_samples 5000
 
 # 下載 200 筆測試資料
 python3 scripts/prepare_common_voice.py \
+    --tarball common_voice_zh_tw.tar.gz \
     --output_dir data/zh-tw-test \
     --split test \
     --max_samples 200
 ```
+> 💡 提示：第二個指令使用了 `--tarball` 參數，直接使用剛剛下載好的壓縮檔，不用重新下載。
 
 ### 策略 B：中量訓練（效果較好）
 
 ```bash
-# 下載 20000 筆訓練資料（約 60 分鐘）
+# 準備 20000 筆訓練資料（若 --tarball 存在則會直接解析）
 python3 scripts/prepare_common_voice.py \
+    --tarball common_voice_zh_tw.tar.gz \
     --output_dir data/zh-tw-train \
     --max_samples 20000
-
-# 下載 500 筆測試資料
-python3 scripts/prepare_common_voice.py \
-    --output_dir data/zh-tw-test \
-    --split test \
-    --max_samples 500
 ```
 
 ### 驗證資料準備結果

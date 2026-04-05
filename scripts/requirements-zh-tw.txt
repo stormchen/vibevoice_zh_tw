@@ -1,5 +1,3 @@
-# VibeVoice-ASR 繁體中文微調所需套件
-datasets>=2.14.0
 soundfile
 tqdm
 opencc-python-reimplemented
