@@ -37,8 +37,8 @@ LORA_DROPOUT=0.05
 
 # 訓練超參數
 NUM_EPOCHS=3
-BATCH_SIZE=4               # GH200 記憶體充足，可用較大 batch
-GRAD_ACCUM=4               # 有效 batch = BATCH_SIZE × GRAD_ACCUM = 16
+BATCH_SIZE=16              # GH200 記憶體超大 (144GB)，直接拉滿
+GRAD_ACCUM=1               # Batch 夠大，不需要多次累積梯度，一步到位更快
 LR="2e-4"                  # LoRA 微調典型學習率
 WARMUP_RATIO=0.05
 WEIGHT_DECAY=0.01
