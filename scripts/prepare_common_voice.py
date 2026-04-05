@@ -142,7 +142,7 @@ def download_with_progress(url: str, output_path: str) -> None:
 def parse_tsv_from_tar(
     tarball_path: str,
     split: str,
-) -> list[dict]:
+) -> tuple[list[dict], str]:
     """
     從 tar.gz 中讀取指定 split 的 TSV 資料。
 
@@ -155,7 +155,7 @@ def parse_tsv_from_tar(
         split: "train"、"test"、"dev" 或 "validated"。
 
     Returns:
-        TSV row 的 list，每筆包含 path 和 sentence。
+        (TSV row 的 list, base_dir 字串)。
     """
     tsv_target = f"zh-TW/{split}.tsv"
     rows = []
@@ -187,12 +187,16 @@ def parse_tsv_from_tar(
                     rows.append({"path": path, "sentence": sentence})
 
     print(f"  TSV 共 {len(rows)} 筆")
-    return rows
+    
+    # 取得基礎目錄，例如：cv-corpus-25.0-2025-01-20/zh-TW
+    base_dir = os.path.dirname(tsv_target)
+    return rows, base_dir
 
 
 def extract_and_convert(
     tarball_path: str,
     rows: list[dict],
+    base_dir: str,
     output_dir: Path,
     max_samples: int | None = None,
     min_duration: float = 1.0,
@@ -204,6 +208,7 @@ def extract_and_convert(
     Args:
         tarball_path: tar.gz 路徑。
         rows: TSV 資料列表。
+        base_dir: Common Voice 在 tarball 內的基礎路徑（如 cv-corpus-25.0/zh-TW）
         output_dir: 輸出目錄。
         max_samples: 最大樣本數。
         min_duration: 最小音訊時長（秒）。
@@ -235,14 +240,20 @@ def extract_and_convert(
             if i % 500 == 0:
                 print(f"  進度：{i}/{len(rows)} ({i/len(rows)*100:.1f}%)", end="\r")
 
-            clip_path_in_tar = f"zh-TW/clips/{row['path']}"
+            # 根據壓縮檔內的實際路徑組織 mp3 檔的路徑
+            clip_path_in_tar = f"{base_dir}/clips/{row['path']}"
             sentence = row["sentence"]
 
             try:
                 member = tar.getmember(clip_path_in_tar)
             except KeyError:
-                skipped += 1
-                continue
+                # 嘗試另一種可能的路徑結構 (沒有 zh-TW 資料夾的極端情況)
+                try:
+                    clip_path_in_tar = f"clips/{row['path']}"
+                    member = tar.getmember(clip_path_in_tar)
+                except KeyError:
+                    skipped += 1
+                    continue
 
             # 提取音訊到記憶體
             with tar.extractfile(member) as audio_f:
@@ -433,7 +444,7 @@ def main():
     print(f"\n{step} 讀取 {args.split}.tsv 並轉換...")
 
     try:
-        rows = parse_tsv_from_tar(tarball_path, args.split)
+        rows, base_dir = parse_tsv_from_tar(tarball_path, args.split)
     except FileNotFoundError as e:
         print(f"\n❌ 錯誤：{e}")
         sys.exit(1)
@@ -446,6 +457,7 @@ def main():
     converted, skipped = extract_and_convert(
         tarball_path=tarball_path,
         rows=rows,
+        base_dir=base_dir,
         output_dir=output_dir,
         max_samples=args.max_samples,
         min_duration=args.min_duration,
