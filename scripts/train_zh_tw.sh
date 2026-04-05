@@ -205,7 +205,7 @@ echo ""
 # 記錄開始時間
 START_TIME=$(date +%s)
 
-torchrun --nproc_per_node=1 finetuning-asr/lora_finetune.py \
+python3 finetuning-asr/lora_finetune.py \
     --model_path "${MODEL_PATH}" \
     --data_dir "${DATA_DIR}" \
     --output_dir "${OUTPUT_DIR}" \
