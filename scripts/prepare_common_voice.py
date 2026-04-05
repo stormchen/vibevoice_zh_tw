@@ -228,83 +228,94 @@ def extract_and_convert(
         rows = random.sample(rows, max_samples)
         print(f"  隨機取樣 {max_samples} 筆（seed=42）")
 
+    # 建立目標路徑字典，提升查詢速度
+    target_clips = {}
+    for row in rows:
+        clip_path_1 = f"{base_dir}/clips/{row['path']}"
+        clip_path_2 = f"clips/{row['path']}"
+        target_clips[clip_path_1] = row
+        target_clips[clip_path_2] = row
+
     output_dir.mkdir(parents=True, exist_ok=True)
     converted = 0
     skipped = 0
 
-    print(f"  解壓並轉換 {len(rows)} 筆資料...")
+    print(f"  解壓並轉換 {len(rows)} 筆資料... (使用順序讀取，可能需要數分鐘)")
 
+    # 順序讀取整個 tar.gz 檔 (避免隨機存取導致不斷重新解壓縮)
     with tarfile.open(tarball_path, "r:gz") as tar:
-        for i, row in enumerate(rows):
-            # 顯示進度
-            if i % 500 == 0:
-                print(f"  進度：{i}/{len(rows)} ({i/len(rows)*100:.1f}%)", end="\r")
+        for i, member in enumerate(tar):
+            if not member.isfile():
+                continue
 
-            # 根據壓縮檔內的實際路徑組織 mp3 檔的路徑
-            clip_path_in_tar = f"{base_dir}/clips/{row['path']}"
-            sentence = row["sentence"]
+            if member.name in target_clips:
+                row = target_clips[member.name]
+                sentence = row["sentence"]
 
-            try:
-                member = tar.getmember(clip_path_in_tar)
-            except KeyError:
-                # 嘗試另一種可能的路徑結構 (沒有 zh-TW 資料夾的極端情況)
+                # 顯示進度
+                if converted > 0 and converted % 500 == 0:
+                    print(f"  進度：{converted}/{len(rows)} ({converted/len(rows)*100:.1f}%)", end="\r")
+
+                # 提取音訊到記憶體
+                with tar.extractfile(member) as audio_f:
+                    audio_bytes = audio_f.read()
+
+                # 從字典中移除，避免重複處理
+                del target_clips[member.name]
+
+                # 用 soundfile 讀取音訊資訊
                 try:
-                    clip_path_in_tar = f"clips/{row['path']}"
-                    member = tar.getmember(clip_path_in_tar)
-                except KeyError:
+                    with io.BytesIO(audio_bytes) as buf:
+                        data, samplerate = sf.read(buf)
+                    duration = len(data) / samplerate
+                except Exception:
                     skipped += 1
                     continue
 
-            # 提取音訊到記憶體
-            with tar.extractfile(member) as audio_f:
-                audio_bytes = audio_f.read()
+                # 時長過濾
+                if duration < min_duration or duration > max_duration:
+                    skipped += 1
+                    continue
 
-            # 用 soundfile 讀取音訊資訊（MP3 需要 soundfile + cffi backend）
-            try:
-                with io.BytesIO(audio_bytes) as buf:
-                    data, samplerate = sf.read(buf)
-                duration = len(data) / samplerate
-            except Exception:
-                skipped += 1
-                continue
+                # 儲存音訊為 WAV
+                audio_filename = f"{converted:06d}.wav"
+                audio_out_path = output_dir / audio_filename
 
-            # 時長過濾
-            if duration < min_duration or duration > max_duration:
-                skipped += 1
-                continue
+                try:
+                    with io.BytesIO(audio_bytes) as buf:
+                        data, samplerate = sf.read(buf)
+                    sf.write(str(audio_out_path), data, samplerate)
+                except Exception:
+                    skipped += 1
+                    continue
 
-            # 儲存音訊為 WAV
-            audio_filename = f"{converted:06d}.wav"
-            audio_out_path = output_dir / audio_filename
+                # 建立 VibeVoice 格式 JSON
+                vibevoice_data = {
+                    "audio_duration": round(duration, 2),
+                    "audio_path": audio_filename,
+                    "segments": [
+                        {
+                            "speaker": 0,
+                            "text": sentence,
+                            "start": 0.0,
+                            "end": round(duration, 2),
+                        }
+                    ],
+                    "customized_context": ["繁體中文", "Traditional Chinese", "zh-TW"],
+                }
 
-            try:
-                with io.BytesIO(audio_bytes) as buf:
-                    data, samplerate = sf.read(buf)
-                sf.write(str(audio_out_path), data, samplerate)
-            except Exception:
-                skipped += 1
-                continue
+                json_path = output_dir / f"{converted:06d}.json"
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(vibevoice_data, f, ensure_ascii=False, indent=2)
 
-            # 建立 VibeVoice 格式 JSON
-            vibevoice_data = {
-                "audio_duration": round(duration, 2),
-                "audio_path": audio_filename,
-                "segments": [
-                    {
-                        "speaker": 0,
-                        "text": sentence,
-                        "start": 0.0,
-                        "end": round(duration, 2),
-                    }
-                ],
-                "customized_context": ["繁體中文", "Traditional Chinese", "zh-TW"],
-            }
+                converted += 1
 
-            json_path = output_dir / f"{converted:06d}.json"
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(vibevoice_data, f, ensure_ascii=False, indent=2)
+                # 如果提早達成目標數量，可以提早結束順序讀取
+                if converted >= len(rows):
+                    break
 
-            converted += 1
+    # 如果有找不到的目標
+    skipped += len(rows) - converted
 
     print(f"\n  轉換完成：{converted} 筆成功，{skipped} 筆跳過")
     return converted, skipped
