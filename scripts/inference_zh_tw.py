@@ -77,8 +77,14 @@ def load_model(
         language_model_pretrained_name="Qwen/Qwen2.5-7B",
     )
 
-    print(f"載入模型：{base_model_path}")
-    attn_impl = "flash_attention_2" if device == "cuda" else "sdpa"
+    # 自動偵測最佳注意力機制
+    attn_impl = "sdpa"
+    if device == "cuda":
+        try:
+            import flash_attn  # noqa: F401
+            attn_impl = "flash_attention_2"
+        except ImportError:
+            pass  # 使用 sdpa 備援
 
     model = VibeVoiceASRForConditionalGeneration.from_pretrained(
         base_model_path,
