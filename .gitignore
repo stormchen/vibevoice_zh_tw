@@ -178,3 +178,5 @@ exp
 experimental_voices
 # Git worktrees
 .worktrees/
+# 訓練產出的模型權重（檔案太大，不應提交到 Git）
+/models/
