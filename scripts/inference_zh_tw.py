@@ -88,7 +88,7 @@ def load_model(
 
     model = VibeVoiceASRForConditionalGeneration.from_pretrained(
         base_model_path,
-        dtype=dtype,
+        torch_dtype=dtype,
         device_map=device if device == "auto" else None,
         attn_implementation=attn_impl,
         trust_remote_code=True,
@@ -308,7 +308,12 @@ def main():
         print(f"錯誤：找不到音訊檔案：{args.audio_file}")
         sys.exit(1)
 
-    dtype = torch.bfloat16 if args.device != "cpu" else torch.float32
+    if args.device == "mps":
+        dtype = torch.float16
+    elif args.device != "cpu":
+        dtype = torch.bfloat16
+    else:
+        dtype = torch.float32
 
     # 載入模型
     model, processor = load_model(
